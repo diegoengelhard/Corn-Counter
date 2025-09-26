@@ -1,4 +1,4 @@
-const WINDOW_MS = 60_000;
+const RATE_LIMIT_WINDOW = 60_000;
 
 // Last allowed request timestamp by clientId
 const lastAllowedAt = new Map<string, number>();
@@ -13,24 +13,29 @@ export type WindowCheck =
   | { allowed: true; retryAfterSeconds: 0; nextAllowedAt: number }
   | { allowed: false; retryAfterSeconds: number; nextAllowedAt: number };
 
-// Checks if a request is within the rate limit window
+/*
+  Checks if a request from a clientId is within the allowed rate limit window.
+  If allowed, updates the last allowed timestamp.
+  @param key - The clientId to check
+  @returns An object indicating if the request is allowed, retry time, and next allowed timestamp
+*/
 export function checkWindow(key: string): WindowCheck {
-  const now = Date.now();
-  const last = lastAllowedAt.get(key) ?? 0;
-  const elapsed = now - last;
+  const now = Date.now(); // obtains current timestamp
+  const last = lastAllowedAt.get(key) ?? 0; // last allowed timestamp for the client
+  const elapsed = now - last; // time since last allowed request
 
   // If outside the window, allow the request and update the timestamp
-  if (elapsed >= WINDOW_MS) {
+  if (elapsed >= RATE_LIMIT_WINDOW) {
     lastAllowedAt.set(key, now);
     return {
       allowed: true,
       retryAfterSeconds: 0,
-      nextAllowedAt: Math.floor((now + WINDOW_MS) / 1000),
+      nextAllowedAt: Math.floor((now + RATE_LIMIT_WINDOW) / 1000),
     };
   }
 
   // If within the window, reject the request
-  const retryAfterMs = WINDOW_MS - elapsed;
+  const retryAfterMs = RATE_LIMIT_WINDOW - elapsed;
   return {
     allowed: false,
     retryAfterSeconds: Math.ceil(retryAfterMs / 1000),
@@ -38,24 +43,40 @@ export function checkWindow(key: string): WindowCheck {
   };
 }
 
-// Increases purchases for a specific client and returns the new count
-export function incClient(clientId: string): number {
+/*
+  Increases the purchase count for a clientId and the global total sold.
+  @param clientId - The client identifier
+  @returns The new purchase count for the client
+*/
+export function increasePurchaseAmount(clientId: string): number {
   const next = (purchasesByClient.get(clientId) ?? 0) + 1;
   purchasesByClient.set(clientId, next);
   totalSold += 1;
   return next;
 }
 
-// Increases global purchases and returns the new total
+/*
+  Increases the global corn sold counter by 1.
+  @returns The new total sold count
+*/
 export function globalCornCounter(): number {
   totalSold += 1;
   return totalSold;
 }
 
+/*
+  Retrieves the purchase count for a specific clientId.
+  @param clientId - The client identifier
+  @returns The purchase count for the client
+*/
 export function getClientCount(clientId: string): number {
   return purchasesByClient.get(clientId) ?? 0;
 }
 
+/*
+  Retrieves the total corn sold count.
+  @returns The total sold count
+*/
 export function getTotalSold(): number {
   return totalSold;
 }
