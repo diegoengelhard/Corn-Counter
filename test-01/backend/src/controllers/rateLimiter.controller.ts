@@ -1,48 +1,65 @@
 import { Request, Response } from 'express';
-import * as cornService from '../services/rateLimiter.service';
+import { 
+    checkWindow,
+    incClient, 
+    getClientCount, 
+    getTotalSold 
+} from '../services/rateLimiter.service';
 
-function requireClientId(req: Request): string {
-  const id = (req.header('X-Client-Id') || '').trim();
-  if (!id) throw new Error('Missing X-Client-Id');
-  return id;
+// Extracts clientId from header or assigns "Guest" if not provided
+function getClientId(req: Request): string {
+  const clientId = (req.header('X-Client-Id') || '').trim();
+  return clientId.length ? clientId : "Guest";
 }
 
-export function buy(req: Request, res: Response) {
-  try {
-    const clientId = requireClientId(req);
-    const result = cornService.tryBuy(clientId);
+// Handles corn purchase requests with rate limiting
+export function buyCorn(req: Request, res: Response) {
+  const clientId = getClientId(req); // Obtain client ID
+  const timeWindow = checkWindow(clientId); // Check rate limit window
 
-    res.setHeader('X-RateLimit-Limit', 1);
-    res.setHeader('X-RateLimit-Window-Seconds', 60);
-    res.setHeader('X-RateLimit-Reset', result.nextAllowedAt);
-    if (!result.allowed) res.setHeader('Retry-After', result.retryAfterSeconds);
-
-    if (!result.allowed) {
-      return res.status(429).json({
-        ok: false,
-        error: 'Too Many Requests',
-        retryAfterSeconds: result.retryAfterSeconds,
-        nextAllowedAt: result.nextAllowedAt,
-      });
-    }
-
-    return res.status(200).json({
-      ok: true,
-      purchased: 1,
-      count: result.count,
-      nextAllowedAt: result.nextAllowedAt,
+  // Rate-limit headers
+  res.setHeader('X-RateLimit-Limit', 1);
+  res.setHeader('X-RateLimit-Window-Seconds', 60);
+  res.setHeader('X-RateLimit-Reset', timeWindow.nextAllowedAt);
+  res.setHeader('X-RateLimit-Identity', clientId);
+  
+  // If rate limit exceeded, respond with 429 status
+  if (!timeWindow.allowed) {
+    res.setHeader('Retry-After', timeWindow.retryAfterSeconds);
+    return res.status(429).json({
+      ok: false,
+      error: 'Too Many Requests',
+      retryAfterSeconds: timeWindow.retryAfterSeconds,
+      nextAllowedAt: timeWindow.nextAllowedAt,
+      clientId,
+      count: getClientCount(clientId),
+      totalSold: getTotalSold(),
     });
-  } catch (error: any) {
-    return res.status(400).json({ ok: false, error: error?.message || 'Bad Request' });
   }
+
+  // Process the purchase
+  const count = incClient(clientId);
+
+  // Successful 200 purchase response
+  return res.status(200).json({
+    ok: true,
+    purchased: 1,
+    clientId,
+    count,
+    totalSold: getTotalSold(),
+    nextAllowedAt: timeWindow.nextAllowedAt,
+  });
 }
 
-export function me(req: Request, res: Response) {
-  try {
-    const clientId = requireClientId(req);
-    const count = cornService.getCornCount(clientId);
-    return res.json({ ok: true, clientId, count });
-  } catch (error: any) {
-    return res.status(400).json({ ok: false, error: error?.message || 'Bad Request' });
-  }
+// Returns client info including purchase count and total sold corn
+export function getClientInfo(req: Request, res: Response) {
+  const clientId = getClientId(req); // Obtain client ID
+  
+  // Respond with client info
+  return res.json({
+    ok: true,
+    clientId,
+    count: getClientCount(clientId),
+    totalSold: getTotalSold(),
+  });
 }
