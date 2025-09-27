@@ -1,16 +1,6 @@
-/* RESET */
-:root {
-  font-family: "Roboto", sans-serif;
-  font-size: 16px;
-  font-weight: 300;
-  box-sizing: border-box;
-  background-color: #f0f0f0;
-}
+@import "tailwindcss";
+@reference "tailwindcss"; /* <- para que @apply conozca las utilities en este archivo */
 
-*,
-*::before,
-*::after {
-  margin: 0;
-  padding: 0;
-  box-sizing: inherit;
+body {
+  @apply bg-amber-50;
 }
