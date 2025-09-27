@@ -2,5 +2,6 @@
 @reference "tailwindcss"; /* <- para que @apply conozca las utilities en este archivo */
 
 body {
+  font-family: 'Inter', sans-serif;
   @apply bg-amber-50;
 }
