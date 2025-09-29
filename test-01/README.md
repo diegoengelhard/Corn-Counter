@@ -1,4 +1,4 @@
-Corn Counter 🌽
+# Corn Counter 🌽
 
 This project features a backend with a rate-limiting system and an interactive frontend built with React, TypeScript, and Tailwind CSS.
 ✨ Key Features
