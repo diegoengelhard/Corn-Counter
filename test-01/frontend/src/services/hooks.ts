@@ -18,6 +18,7 @@ export function useClientId() {
   // Clears the clientId from state and localStorage
   const logout = useCallback(() => {
     localStorage.removeItem(STORAGE_KEY);
+    localStorage.removeItem('nextAllowedAt');
     setClientIdState("");
   }, []);
 
@@ -33,10 +34,10 @@ export function useClientId() {
   }, []);
 
   // Return the clientId, login and logout functions, and authentication status
-  return { 
-    clientId, 
-    login, 
-    logout, 
-    isAuthenticated: !!clientId // Boolean indicating if user is logged in
-};
+  return {
+    clientId,
+    login,
+    logout,
+    isAuthenticated: !!clientId, // Boolean indicating if user is logged in
+  };
 }

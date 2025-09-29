@@ -24,4 +24,6 @@ export interface IClientInfoResponse {
   clientId: string;
   count: number;
   totalSold: number;
+  retryAfterSeconds: number;
+  nextAllowedAt: number;  
 }

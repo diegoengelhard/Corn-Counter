@@ -2,6 +2,7 @@ import { Request, Response } from 'express';
 import { 
     checkWindow,
     increasePurchaseAmount, 
+    getWindowStatus,
     getClientCount, 
     getTotalSold 
 } from '../services/rateLimiter.service';
@@ -68,12 +69,16 @@ export function buyCorn(req: Request, res: Response<IBuyCornResponse>) {
 */
 export function getClientInfo(req: Request, res: Response<IClientInfoResponse>) {
   const clientId = getClientId(req); // Obtain client ID
-  
+
+  const { retryAfterSeconds, nextAllowedAt } = getWindowStatus(clientId); // Get rate limit status
+
   // Respond with client info
   return res.json({
     ok: true,
     clientId,
     count: getClientCount(clientId),
     totalSold: getTotalSold(),
+    retryAfterSeconds,
+    nextAllowedAt,
   });
 }

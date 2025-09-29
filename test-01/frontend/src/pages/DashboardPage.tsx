@@ -16,18 +16,42 @@ function DashboardPage({ clientId, onLogout }: DashboardPageProps) {
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Effect to fetch initial data when component mounts.
+  const COOLDOWN_KEY = `nextAllowedAt:${clientId}`;
+
   useEffect(() => {
-    const fetchInitialData = async () => {
+
+    const restorePersisted = () => {
+      const raw = localStorage.getItem(COOLDOWN_KEY);
+      if (!raw) return;
+      const stored = Number(raw);
+      if (!stored) {
+        localStorage.removeItem(COOLDOWN_KEY);
+        return;
+      }
+      const nowSec = Math.floor(Date.now() / 1000);
+      const remaining = stored - nowSec;
+      if (remaining > 0) setCooldown(remaining);
+      else localStorage.removeItem(COOLDOWN_KEY);
+    };
+
+    const fetchData = async () => {
       try {
         const data = await getClientInfo(clientId);
         setUserCorn(data.count);
         setTotalCorn(data.totalSold);
-      } catch (err) {
+        if (data.retryAfterSeconds > 0) {
+          setCooldown(data.retryAfterSeconds);
+          localStorage.setItem(COOLDOWN_KEY, String(data.nextAllowedAt));
+        } else {
+          localStorage.removeItem(COOLDOWN_KEY);
+        }
+      } catch {
         setError("Error loading client info.");
       }
     };
-    fetchInitialData();
+
+    restorePersisted();
+    fetchData();
   }, [clientId]);
 
   // Effect to handle cooldown timer.
@@ -62,10 +86,11 @@ function DashboardPage({ clientId, onLogout }: DashboardPageProps) {
         setUserCorn(response.count);
         setTotalCorn(response.totalSold);
         setCooldown(response.retryAfterSeconds);
-        setError(
-          `Too fast! Try again later in ${response.retryAfterSeconds} seconds.`
-        );
+        setError(`Too fast! Try again later.`);
       }
+
+      // Store nextAllowedAt in localStorage
+      localStorage.setItem(COOLDOWN_KEY, String(response.nextAllowedAt));
     } catch (err) {
       setError("Error processing purchase.");
     } finally {

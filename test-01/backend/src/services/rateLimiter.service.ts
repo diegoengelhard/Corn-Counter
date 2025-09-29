@@ -14,19 +14,16 @@ export type WindowCheck =
   | { allowed: false; retryAfterSeconds: number; nextAllowedAt: number };
 
 /*
-  Checks if a request from a clientId is within the allowed rate limit window.
-  If allowed, updates the last allowed timestamp.
-  @param key - The clientId to check
+  Checks the next allowed request time for a clientId.
+  @param clientId - The clientId to check
   @returns An object indicating if the request is allowed, retry time, and next allowed timestamp
 */
-export function checkWindow(key: string): WindowCheck {
-  const now = Date.now(); // obtains current timestamp
-  const last = lastAllowedAt.get(key) ?? 0; // last allowed timestamp for the client
-  const elapsed = now - last; // time since last allowed request
+function checkNextAllowedAtStatus(clientId: string): WindowCheck {
+  const now = Date.now();
+  const last = lastAllowedAt.get(clientId) ?? 0;
+  const elapsed = now - last;
 
-  // If outside the window, allow the request and update the timestamp
-  if (elapsed >= RATE_LIMIT_WINDOW) {
-    lastAllowedAt.set(key, now);
+  if (elapsed >= RATE_LIMIT_WINDOW || last === 0) {
     return {
       allowed: true,
       retryAfterSeconds: 0,
@@ -34,12 +31,42 @@ export function checkWindow(key: string): WindowCheck {
     };
   }
 
-  // If within the window, reject the request
   const retryAfterMs = RATE_LIMIT_WINDOW - elapsed;
   return {
     allowed: false,
     retryAfterSeconds: Math.ceil(retryAfterMs / 1000),
     nextAllowedAt: Math.floor((now + retryAfterMs) / 1000),
+  };
+}
+
+/*
+  Checks if a clientId can make a request within the rate limit window.
+  If allowed, updates the last allowed timestamp to now.
+  @param clientId - The clientId to check
+  @returns An object indicating if the request is allowed, retry time, and next allowed timestamp
+*/
+export function checkWindow(clientId: string): WindowCheck {
+  const status = checkNextAllowedAtStatus(clientId);
+  if (status.allowed) {
+    // Consumir ventana (marcar timestamp ahora)
+    lastAllowedAt.set(clientId, Date.now());
+  }
+  return status;
+}
+
+/*
+  Retrieves the current time window status for a clientId.
+  @param clientId - The clientId to check
+  @returns An object with retry time and next allowed timestamp
+*/
+export function getWindowStatus(clientId: string): {
+  retryAfterSeconds: number;
+  nextAllowedAt: number;
+} {
+  const status = checkNextAllowedAtStatus(clientId);
+  return {
+    retryAfterSeconds: status.allowed ? 0 : status.retryAfterSeconds,
+    nextAllowedAt: status.nextAllowedAt,
   };
 }
 
