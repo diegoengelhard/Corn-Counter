@@ -27,3 +27,8 @@ export interface IClientInfoResponse {
   retryAfterSeconds: number;
   nextAllowedAt: number;  
 }
+
+export interface IApiError {
+  ok: false;
+  error: string;
+}

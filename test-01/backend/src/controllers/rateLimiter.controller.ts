@@ -1,14 +1,12 @@
-import { Request, Response } from 'express';
-import { 
-    checkWindow,
-    increasePurchaseAmount, 
-    getWindowStatus,
-    getClientCount, 
-    getTotalSold 
-} from '../services/rateLimiter.service';
+import { Request, Response } from "express";
 import {
-    IBuyCornResponse,
-    IClientInfoResponse,
+  buyCorn as buyCornService,
+  getClientInfo as getClientInfoService,
+} from "../services/rateLimiter.service";
+import {
+  IBuyCornResponse,
+  IClientInfoResponse,
+  IApiError,
 } from "../ts/interfaces";
 
 /*
@@ -17,68 +15,49 @@ Extracts the client ID from request headers or defaults to "Guest".
 @returns The client identifier
 */
 function getClientId(req: Request): string {
-  const clientId = (req.header('X-Client-Id') || '').trim();
+  const clientId = (req.header("X-Client-Id") || "").trim();
   return clientId.length ? clientId : "Guest";
 }
 
-/*
-    Handles a corn purchase request, enforcing rate limits.
-    Responds with purchase status, client info, and rate limit headers.
-*/
-export function buyCorn(req: Request, res: Response<IBuyCornResponse>) {
-  const clientId = getClientId(req); // Obtain client ID
-  const timeWindow = checkWindow(clientId); // Check rate limit window
+export function buyCorn(
+  req: Request,
+  res: Response<IBuyCornResponse | IApiError>
+) {
+  try {
+    const clientId = getClientId(req);
+    const result = buyCornService(clientId);
 
-  // Rate-limit headers
-  res.setHeader('X-RateLimit-Limit', 1);
-  res.setHeader('X-RateLimit-Window-Seconds', 60);
-  res.setHeader('X-RateLimit-Reset', timeWindow.nextAllowedAt);
-  res.setHeader('X-RateLimit-Identity', clientId);
-  
-  // If rate limit exceeded, respond with 429 status
-  if (!timeWindow.allowed) {
-    res.setHeader('Retry-After', timeWindow.retryAfterSeconds);
-    return res.status(429).json({
+    // Set rate-limit headers
+    res.setHeader("X-RateLimit-Limit", 1);
+    res.setHeader("X-RateLimit-Window-Seconds", 60);
+    res.setHeader("X-RateLimit-Reset", result.nextAllowedAt);
+    res.setHeader("X-RateLimit-Identity", clientId);
+
+    if (!result.ok) {
+      res.setHeader("Retry-After", result.retryAfterSeconds);
+      return res.status(429).json(result);
+    }
+    return res.status(200).json(result);
+  } catch (error) {
+    return res.status(500).json({
       ok: false,
-      error: 'Too Many Requests',
-      retryAfterSeconds: timeWindow.retryAfterSeconds,
-      nextAllowedAt: timeWindow.nextAllowedAt,
-      clientId,
-      count: getClientCount(clientId),
-      totalSold: getTotalSold(),
+      error: "Internal Server Error",
     });
   }
-
-  // Process the purchase
-  const count = increasePurchaseAmount(clientId);
-
-  // Successful 200 purchase response
-  return res.status(200).json({
-    ok: true,
-    purchased: 1,
-    clientId,
-    count,
-    totalSold: getTotalSold(),
-    nextAllowedAt: timeWindow.nextAllowedAt,
-  });
 }
 
-/*
-    Retrieves client purchase info.
-    Responds with client ID, purchase count, and total sold.
-*/
-export function getClientInfo(req: Request, res: Response<IClientInfoResponse>) {
-  const clientId = getClientId(req); // Obtain client ID
-
-  const { retryAfterSeconds, nextAllowedAt } = getWindowStatus(clientId); // Get rate limit status
-
-  // Respond with client info
-  return res.json({
-    ok: true,
-    clientId,
-    count: getClientCount(clientId),
-    totalSold: getTotalSold(),
-    retryAfterSeconds,
-    nextAllowedAt,
-  });
+export function getClientInfo(
+  req: Request,
+  res: Response<IClientInfoResponse | IApiError>
+) {
+  try {
+    const clientId = getClientId(req); // Extract client ID from headers or default to "Guest"
+    const result = getClientInfoService(clientId); // Call service to get client info
+    return res.status(200).json(result);
+  } catch (error) {
+    return res.status(500).json({
+      ok: false,
+      error: "Internal Server Error",
+    });
+  }
 }

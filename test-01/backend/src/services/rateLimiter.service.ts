@@ -1,3 +1,8 @@
+import {
+    IBuyCornResponse,
+    IClientInfoResponse,
+} from "../ts/interfaces";
+
 const RATE_LIMIT_WINDOW = 60_000;
 
 // Last allowed request timestamp by clientId
@@ -45,7 +50,7 @@ function checkNextAllowedAtStatus(clientId: string): WindowCheck {
   @param clientId - The clientId to check
   @returns An object indicating if the request is allowed, retry time, and next allowed timestamp
 */
-export function checkWindow(clientId: string): WindowCheck {
+function checkWindow(clientId: string): WindowCheck {
   const status = checkNextAllowedAtStatus(clientId);
   if (status.allowed) {
     // Consumir ventana (marcar timestamp ahora)
@@ -59,7 +64,7 @@ export function checkWindow(clientId: string): WindowCheck {
   @param clientId - The clientId to check
   @returns An object with retry time and next allowed timestamp
 */
-export function getWindowStatus(clientId: string): {
+function getWindowStatus(clientId: string): {
   retryAfterSeconds: number;
   nextAllowedAt: number;
 } {
@@ -75,7 +80,7 @@ export function getWindowStatus(clientId: string): {
   @param clientId - The client identifier
   @returns The new purchase count for the client
 */
-export function increasePurchaseAmount(clientId: string): number {
+function increasePurchaseAmount(clientId: string): number {
   const next = (purchasesByClient.get(clientId) ?? 0) + 1;
   purchasesByClient.set(clientId, next);
   totalSold += 1;
@@ -86,7 +91,7 @@ export function increasePurchaseAmount(clientId: string): number {
   Increases the global corn sold counter by 1.
   @returns The new total sold count
 */
-export function globalCornCounter(): number {
+function globalCornCounter(): number {
   totalSold += 1;
   return totalSold;
 }
@@ -96,7 +101,7 @@ export function globalCornCounter(): number {
   @param clientId - The client identifier
   @returns The purchase count for the client
 */
-export function getClientCount(clientId: string): number {
+function getClientCount(clientId: string): number {
   return purchasesByClient.get(clientId) ?? 0;
 }
 
@@ -104,6 +109,53 @@ export function getClientCount(clientId: string): number {
   Retrieves the total corn sold count.
   @returns The total sold count
 */
-export function getTotalSold(): number {
+function getTotalSold(): number {
   return totalSold;
+}
+
+/*
+    Handles a corn purchase request, enforcing rate limits.
+    Responds with purchase status, client info, and rate limit headers.
+*/
+export function buyCorn(clientId: string): IBuyCornResponse {
+  const timeWindow = checkWindow(clientId);
+
+  if (!timeWindow.allowed) {
+    return {
+      ok: false,
+      error: 'Too Many Requests',
+      retryAfterSeconds: timeWindow.retryAfterSeconds,
+      nextAllowedAt: timeWindow.nextAllowedAt,
+      clientId,
+      count: getClientCount(clientId),
+      totalSold: getTotalSold(),
+    };
+  }
+
+  const count = increasePurchaseAmount(clientId);
+
+  return {
+    ok: true,
+    purchased: 1,
+    clientId,
+    count,
+    totalSold: getTotalSold(),
+    nextAllowedAt: timeWindow.nextAllowedAt,
+  };
+}
+
+/*
+    Retrieves client purchase info.
+    Responds with client ID, purchase count, and total sold.
+*/
+export function getClientInfo(clientId: string): IClientInfoResponse {
+  const { retryAfterSeconds, nextAllowedAt } = getWindowStatus(clientId);
+  return {
+    ok: true,
+    clientId,
+    count: getClientCount(clientId),
+    totalSold: getTotalSold(),
+    retryAfterSeconds,
+    nextAllowedAt,
+  };
 }
