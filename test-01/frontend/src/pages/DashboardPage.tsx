@@ -3,6 +3,7 @@ import { getClientInfo, buyCorn } from "../services/api";
 import StatCard from "../components/StatCard";
 import BuyButton from "../components/BuyButton";
 import CountdownTimer from "../components/CountdownTimer";
+import { toast } from 'react-toastify';
 
 interface DashboardPageProps {
   clientId: string;
@@ -14,7 +15,6 @@ function DashboardPage({ clientId, onLogout }: DashboardPageProps) {
   const [totalCorn, setTotalCorn] = useState<number>(0);
   const [cooldown, setCooldown] = useState<number>(0);
   const [isLoading, setIsLoading] = useState<boolean>(false);
-  const [error, setError] = useState<string | null>(null);
 
   const COOLDOWN_KEY = `nextAllowedAt:${clientId}`;
 
@@ -46,7 +46,7 @@ function DashboardPage({ clientId, onLogout }: DashboardPageProps) {
           localStorage.removeItem(COOLDOWN_KEY);
         }
       } catch {
-        setError("Error loading client info.");
+        toast.error("Error loading client info.");
       }
     };
 
@@ -68,7 +68,6 @@ function DashboardPage({ clientId, onLogout }: DashboardPageProps) {
 
   const handleBuyCorn = useCallback(async () => {
     setIsLoading(true);
-    setError(null);
 
     try {
       const response = await buyCorn(clientId);
@@ -86,13 +85,13 @@ function DashboardPage({ clientId, onLogout }: DashboardPageProps) {
         setUserCorn(response.count);
         setTotalCorn(response.totalSold);
         setCooldown(response.retryAfterSeconds);
-        setError(`Too fast! Try again later.`);
+        toast.warn(`Too fast! Retry after ${response.retryAfterSeconds} seconds.`);
       }
 
       // Store nextAllowedAt in localStorage
       localStorage.setItem(COOLDOWN_KEY, String(response.nextAllowedAt));
     } catch (err) {
-      setError("Error processing purchase.");
+      toast.error("Error processing purchase.");
     } finally {
       setIsLoading(false);
     }
@@ -117,7 +116,6 @@ function DashboardPage({ clientId, onLogout }: DashboardPageProps) {
             </button>
           )}
         </div>
-        {error && <p className="text-red-500 text-center mb-4">{error}</p>}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-8">
           <StatCard label="Your Harvests" value={userCorn} />
           <StatCard label="Global Crops " value={totalCorn} />

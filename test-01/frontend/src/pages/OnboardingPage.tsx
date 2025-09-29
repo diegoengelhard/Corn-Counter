@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { Navigate } from 'react-router-dom';
+import { toast } from 'react-toastify';
 
 interface OnboardingPageProps {
   onLogin: (clientId: string) => void;
@@ -10,7 +11,11 @@ function OnboardingPage({ onLogin }: OnboardingPageProps) {
   const [done, setDone] = useState(false);
 
   const handleStart = () => {
-    onLogin(name.trim() || 'Guest');
+    if (!name.trim()) {
+      toast.warn("Please enter a valid name.");
+      return;
+    }
+    onLogin(name.trim());
     setDone(true);
   };
 
